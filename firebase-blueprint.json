@@ -1,0 +1,27 @@
+{
+  "entities": {
+    "UserProgress": {
+      "title": "User Progress",
+      "description": "Stores user state, inventory, and avatar.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "avatar": { "type": "string" },
+        "appState": { "type": "string" },
+        "inventory": { "type": "array", "items": { "type": "string" } },
+        "completedNpcs": { "type": "array", "items": { "type": "string" } },
+        "playTimeSeconds": { "type": "number", "description": "Total play time in seconds" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "name", "avatar", "appState", "inventory", "completedNpcs"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProgress" },
+      "description": "User progress data."
+    }
+  }
+}

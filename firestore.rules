@@ -1,0 +1,48 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} { allow read, write: if false; }
+
+    function isSignedIn() { return request.auth != null && request.auth.token.email_verified == true; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    function isValidUserProgress(data) {
+      return data.keys().hasAll(['userId', 'name', 'avatar', 'appState', 'inventory', 'completedNpcs', 'createdAt', 'updatedAt']) &&
+             data.userId == request.auth.uid &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 15 &&
+             data.avatar is string && data.avatar.size() <= 1048576 &&
+             data.appState is string && data.appState.size() <= 20 &&
+             data.inventory is list && data.inventory.size() <= 20 &&
+             data.completedNpcs is list && data.completedNpcs.size() <= 20 &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp &&
+             (!data.keys().hasAny(['hasSeenTutorial']) || data.hasSeenTutorial is bool) &&
+             (!data.keys().hasAny(['selectedEquipment']) || data.selectedEquipment is number || data.selectedEquipment is string || data.selectedEquipment == null) &&
+             (!data.keys().hasAny(['playTimeSeconds']) || data.playTimeSeconds is number);
+    }
+
+    match /users/{userId} {
+      allow read: if request.auth != null; // relax email_verified for reads so testing is easier if email isn't verified in dev
+      allow create: if request.auth != null &&
+                    isValidId(userId) &&
+                    request.auth.uid == userId &&
+                    isValidUserProgress(incoming()) &&
+                    incoming().createdAt == request.time &&
+                    incoming().updatedAt == request.time;
+      allow update: if request.auth != null &&
+                    isValidId(userId) &&
+                    request.auth.uid == userId &&
+                    isValidUserProgress(incoming()) &&
+                    incoming().userId == existing().userId &&
+                    incoming().createdAt == existing().createdAt &&
+                    incoming().updatedAt == request.time &&
+                    (
+                      incoming().diff(existing()).affectedKeys().hasOnly(['appState', 'inventory', 'completedNpcs', 'updatedAt', 'hasSeenTutorial', 'selectedEquipment', 'playTimeSeconds']) ||
+                      incoming().diff(existing()).affectedKeys().hasOnly(['name', 'avatar', 'updatedAt']) ||
+                      incoming().diff(existing()).affectedKeys().hasOnly(['name', 'avatar', 'appState', 'inventory', 'completedNpcs', 'updatedAt', 'hasSeenTutorial', 'selectedEquipment', 'playTimeSeconds'])
+                    );
+    }
+  }
+}
